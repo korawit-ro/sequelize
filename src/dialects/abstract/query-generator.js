@@ -1535,7 +1535,7 @@ class QueryGenerator {
       query = `SELECT ${attributes.main.join(', ')} FROM (${subQueryItems.join('')}) ${this.getAliasToken()} ${mainTable.as}${mainJoinQueries.join('')}${mainQueryItems.join('')}`;
     } else if (joinFiltering && !isAggregateFunction) {
       const joinFilteringLimit = limitOrder != null ? limitOrder : '';
-      const joinFilteringPrimaryKeyAttr = `${this.quoteTable(model.name)}.${this.quoteIdentifier(model.primaryKeyField)}`;
+      const joinFilteringPrimaryKeyAttr = `${mainTable.as}.${this.quoteIdentifier(model.primaryKeyField)}`;
       const joinFilterinBeforeQueryItems = mainQueryItems.slice(0, joinFilteringIdx);
       const joinFilteringAfterQueryItems = mainQueryItems.slice(joinFilteringIdx);
       const joinFilteringOrdersSql = joinFilteringOrders.join(', ');
@@ -1543,7 +1543,7 @@ class QueryGenerator {
       if (joinFilteringOrdersSql !== '') {
         innerAttr += `, ${joinFilteringOrdersSql}`;
       }
-      const innerQuery = `SELECT ${innerAttr} FROM ${this.quoteTable(model.name)} ${this.getAliasToken()} ${mainTable.as}${joinFilteringAfterQueryItems.join('')}${joinFilteringLimit}`;
+      const innerQuery = `SELECT ${innerAttr} FROM ${this.quoteTable(model.getTableName())} ${this.getAliasToken()} ${mainTable.as}${joinFilteringAfterQueryItems.join('')}${joinFilteringLimit}`;
       const pagingJoin = ` INNER JOIN (${innerQuery}) AS "calc_paging" ON "calc_paging".${this.quoteIdentifier(model.primaryKeyField)} = ${joinFilteringPrimaryKeyAttr}`;
       query = `${joinFilterinBeforeQueryItems.join('')}${pagingJoin}${joinFilteringAfterQueryItems.join('')}`;
     } else {
