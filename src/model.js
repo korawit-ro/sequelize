@@ -2022,6 +2022,7 @@ class Model {
     // We need to preserve attributes here as the `injectScope` call would inject non aggregate columns.
     const prevAttributes = options.attributes;
     this._injectScope(options);
+    options.aggregateFunction = aggregateFunction;
     options.attributes = prevAttributes;
     this._conformIncludes(options, this);
 

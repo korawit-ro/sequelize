@@ -860,6 +860,15 @@ export interface FindOptions<TAttributes = any>
    * See {@link FindOptions#limit} for more information.
    */
   subQuery?: boolean;
+
+  /**
+  * Filter join data on main where (by Red-Lamp).
+  * 
+  * - Specifies a where clause with nested attribute: `{ '$projects.id$': 1 }`
+  *
+  * If unspecified, this will `false` by default.
+  */
+  joinFiltering?: boolean;
 }
 
 export interface NonNullFindOptions<TAttributes = any> extends FindOptions<TAttributes> {

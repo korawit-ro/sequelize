@@ -1257,7 +1257,12 @@ class QueryGenerator {
     const limit = options.limit;
     const mainQueryItems = [];
     const subQueryItems = [];
-    const subQuery = options.subQuery === undefined ? limit && options.hasMultiAssociation : options.subQuery;
+    const preSubQuery = options.subQuery === undefined ? limit && options.hasMultiAssociation : options.subQuery;
+    const joinFiltering = options.joinFiltering ? true : false;
+    let joinFilteringIdx = 0;
+    let joinFilteringOrders = [];
+    const isAggregateFunction = options.aggregateFunction ? true : false;
+    const subQuery = joinFiltering ? false : preSubQuery;
     const attributes = {
       main: options.attributes && options.attributes.slice(),
       subQuery: null
@@ -1450,6 +1455,9 @@ class QueryGenerator {
         })`, mainTable.as));
       } else {
         mainQueryItems.push(this.selectFromTableFragment(options, mainTable.model, attributes.main, mainTable.quotedName, mainTable.as));
+        if (joinFiltering) {
+          joinFilteringIdx = mainQueryItems.length;
+        }
       }
 
       mainQueryItems.push(mainJoinQueries.join(''));
@@ -1500,6 +1508,11 @@ class QueryGenerator {
     if (options.order) {
       const orders = this.getQueryOrders(options, model, subQuery);
       if (orders.mainQueryOrder.length) {
+        if (joinFiltering && !isAggregateFunction) {
+          joinFilteringOrders = orders.mainQueryOrder.map(
+            (val, idx) => `${val.replace(/asc/gi, '').replace(/desc/gi, '').trim() } ${this.getAliasToken()} calc_order_${idx}`
+          );
+        }
         mainQueryItems.push(` ORDER BY ${orders.mainQueryOrder.join(', ')}`);
       }
       if (orders.subQueryOrder.length) {
@@ -1512,7 +1525,7 @@ class QueryGenerator {
     if (limitOrder && !options.groupedLimit) {
       if (subQuery) {
         subQueryItems.push(limitOrder);
-      } else {
+      } else if (!joinFiltering || isAggregateFunction) {
         mainQueryItems.push(limitOrder);
       }
     }
@@ -1520,6 +1533,19 @@ class QueryGenerator {
     if (subQuery) {
       this._throwOnEmptyAttributes(attributes.main, { modelName: model && model.name, as: mainTable.as });
       query = `SELECT ${attributes.main.join(', ')} FROM (${subQueryItems.join('')}) ${this.getAliasToken()} ${mainTable.as}${mainJoinQueries.join('')}${mainQueryItems.join('')}`;
+    } else if (joinFiltering && !isAggregateFunction) {
+      const joinFilteringLimit = limitOrder != null ? limitOrder : '';
+      const joinFilteringPrimaryKeyAttr = `${this.quoteTable(model.name)}.${this.quoteIdentifier(model.primaryKeyField)}`;
+      const joinFilterinBeforeQueryItems = mainQueryItems.slice(0, joinFilteringIdx);
+      const joinFilteringAfterQueryItems = mainQueryItems.slice(joinFilteringIdx);
+      const joinFilteringOrdersSql = joinFilteringOrders.join(', ');
+      let innerAttr = `DISTINCT ${joinFilteringPrimaryKeyAttr}`;
+      if (joinFilteringOrdersSql !== '') {
+        innerAttr += `, ${joinFilteringOrdersSql}`;
+      }
+      const innerQuery = `SELECT ${innerAttr} FROM ${this.quoteTable(model.name)} ${this.getAliasToken()} ${mainTable.as}${joinFilteringAfterQueryItems.join('')}${joinFilteringLimit}`;
+      const pagingJoin = ` INNER JOIN (${innerQuery}) AS "calc_paging" ON "calc_paging".${this.quoteIdentifier(model.primaryKeyField)} = ${joinFilteringPrimaryKeyAttr}`;
+      query = `${joinFilterinBeforeQueryItems.join('')}${pagingJoin}${joinFilteringAfterQueryItems.join('')}`;
     } else {
       query = mainQueryItems.join('');
     }
